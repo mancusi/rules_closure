@@ -25,16 +25,19 @@ final class JsCompilerRunner extends CommandLineRunner {
   private final Compiler compiler;
   private final boolean exportTestFunctions;
   private final WarningsGuard warnings;
+  private final boolean disablePropertyRenaming;
 
   JsCompilerRunner(
       Iterable<String> args,
       Compiler compiler,
       boolean exportTestFunctions,
-      WarningsGuard warnings) {
+      WarningsGuard warnings,
+      boolean disablePropertyRenaming) {
     super(Iterables.toArray(args, String.class));
     this.compiler = compiler;
     this.exportTestFunctions = exportTestFunctions;
     this.warnings = warnings;
+    this.disablePropertyRenaming = disablePropertyRenaming;
   }
 
   int go() throws IOException {
@@ -58,6 +61,9 @@ final class JsCompilerRunner extends CommandLineRunner {
     options.setExportTestFunctions(exportTestFunctions);
     options.addWarningsGuard(warnings);
     options.setModuleResolutionMode(ModuleLoader.ResolutionMode.NODE);
+    if (disablePropertyRenaming) {
+        options.setPropertyRenaming(PropertyRenamingPolicy.OFF);
+    }
     return options;
   }
 }
