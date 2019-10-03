@@ -95,6 +95,7 @@ public final class JsCompiler implements CommandLineProgram {
     boolean expectWarnings = false;
     boolean exportTestFunctions = false;
     boolean checksOnly = false;
+    boolean disablePropertyRenaming = false;
 
     // Compiler flags we want to read.
     Path jsOutputFile = null;
@@ -137,6 +138,9 @@ public final class JsCompiler implements CommandLineProgram {
         case "--create_source_map":
           createSourceMap = Paths.get(iargs.peek());
           break;
+        case "--disable_property_renaming":
+          disablePropertyRenaming = true;
+          continue;
         default:
           break;
       }
@@ -185,7 +189,8 @@ public final class JsCompiler implements CommandLineProgram {
             passThroughArgs,
             compiler,
             exportTestFunctions,
-            warnings);
+            warnings,
+            disablePropertyRenaming);
     if (runner.shouldRunCompiler()) {
       failed |= runner.go() != 0;
     }
