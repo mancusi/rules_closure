@@ -63,6 +63,7 @@ final class JsCompilerRunner extends CommandLineRunner {
     options.setModuleResolutionMode(ModuleLoader.ResolutionMode.NODE);
     if (disablePropertyRenaming) {
         options.setPropertyRenaming(PropertyRenamingPolicy.OFF);
+        options.setDisambiguateProperties(false);
     }
     return options;
   }
