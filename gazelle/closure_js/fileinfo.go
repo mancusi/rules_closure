@@ -1,0 +1,195 @@
+package closure_js
+
+import (
+	"io/ioutil"
+	"log"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+// fileInfo holds information used to decide how to build a file. This
+// information comes from the file's name, and from goog.require/provide/module
+// declarations (in .js / .jsx files).
+type fileInfo struct {
+	path string
+	name string
+
+	// ext is the type of file, based on extension.
+	ext ext
+
+	// provides are the import paths that this file provides.
+	provides []string
+
+	// isTest is true if the file stem (the part before the extension)
+	// ends with "_test". This may be true for js, jsx, or html files.
+	isTest bool
+
+	// isTestOnly is true if the file contains a goog.setTestOnly declaration.
+	isTestOnly bool
+
+	// moduleType describes the module system used by this file.
+	moduleType moduleType
+
+	// imports is a list of identifiers imported by a file.
+	imports []string
+
+	// deps is the list of rules that should be added to deps.
+	// these are from directives, bypassing the imports -> resolve flow.
+	deps []string
+}
+
+type moduleType int
+
+const (
+	moduleTypeES6 moduleType = iota
+	moduleTypeGoogProvide
+	moduleTypeGoogModule
+)
+
+// ext indicates how a file should be treated, based on extension.
+type ext int
+
+const (
+	// unknownExt is applied files that aren't buildable with rules_closure
+	unknownExt ext = iota
+
+	// jsExt is applied to .js files.
+	jsExt
+
+	// jsxExt is applied to .jsx files.
+	jsxExt
+
+	// htmlExt is applied to .html files.
+	htmlExt
+)
+
+// fileNameInfo returns information that can be inferred from the name of
+// a file. It does not read data from the file.
+func fileNameInfo(path_ string) fileInfo {
+	name := filepath.Base(path_)
+	var ext ext
+	switch path.Ext(name) {
+	case ".js":
+		ext = jsExt
+	case ".jsx":
+		ext = jsxExt
+	case ".html":
+		ext = htmlExt
+	default:
+		ext = unknownExt
+	}
+	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+		ext = unknownExt
+	}
+
+	var isTest bool
+	l := strings.Split(name[:len(name)-len(path.Ext(name))], "_")
+	if len(l) >= 2 && l[len(l)-1] == "test" {
+		isTest = true
+	}
+
+	return fileInfo{
+		path:       path_,
+		name:       name,
+		ext:        ext,
+		isTest:     isTest,
+		moduleType: moduleTypeES6,
+	}
+}
+
+var (
+	closureLibraryRepo = `com_google_javascript_closure_library`
+
+	declRegexp = regexp.MustCompile(`(?m)^(?:(?:const|var) [^;]*?\s*=\s*)?goog\.(require|provide|module)\(['"]([^'"]+)`)
+
+	testonlyRegexp = regexp.MustCompile(`^goog\.setTestOnly\(`)
+
+	// NOTE: there are 3 different syntaxes for our purposes:
+	// import [MULTILINE STUFF] from "module-name";
+	// import "module-name";
+	// var promise = import("module-name");  // NOT SUPPORTED
+	es6ImportRegexp = regexp.MustCompile(`(?m)^import (?:[^;]*? from )['"]([^'"]+)['"];`)
+)
+
+// jsFileInfo returns information about a .js file.
+// If the file is not found, false is returned. If there's another error reading
+// the file, an error will be logged, and partial information will be returned.
+func jsFileInfo(repoRoot string, jsc *jsConfig, path string) (info fileInfo, ok bool) {
+	info = fileNameInfo(path)
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("%s: error reading js file: %v", info.path, err)
+		}
+		return info, false
+	}
+	for _, match := range declRegexp.FindAllSubmatch(b, -1) {
+		var (
+			declType   = string(match[1])
+			identifier = string(match[2])
+		)
+		switch declType {
+		case "provide":
+			info.moduleType = moduleTypeGoogProvide
+			info.provides = append(info.provides, identifier)
+		case "module":
+			info.moduleType = moduleTypeGoogModule
+			info.provides = append(info.provides, identifier)
+		case "require":
+			info.imports = append(info.imports, identifier)
+		default:
+			panic("unhandled declType: " + declType)
+		}
+	}
+
+	// If this file declares neither goog.provide nor goog.module, treat it as
+	// providing its path as a workspace-relative, extensionless ES6 module.
+	// For example: ["/path/to/file"]
+	if info.moduleType == moduleTypeES6 {
+		relPath, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			log.Println("error resolving module name:", err)
+		} else {
+			info.provides = append(info.provides,
+				"/"+relPath[:len(relPath)-len(filepath.Ext(relPath))])
+		}
+	}
+
+	for _, match := range es6ImportRegexp.FindAllSubmatch(b, -1) {
+		var (
+			moduleName = string(match[1])
+		)
+		// moduleName is relative if it starts with '.'
+		// Resolve it to the absolute path, relative to the repo, starting with slash.
+		if strings.HasPrefix(moduleName, ".") {
+			resolvedModule, err := filepath.Rel(repoRoot, filepath.Join(filepath.Dir(path), moduleName))
+			if err != nil {
+				log.Println("error resolving module import", moduleName, ":", err)
+				continue
+			}
+			moduleName = "/" + resolvedModule
+		}
+		info.imports = append(info.imports, moduleName)
+	}
+	info.isTestOnly = testonlyRegexp.Match(b)
+	for _, ge := range jsc.grepExterns {
+		if ge.matches(b) {
+			if !contains(info.deps, ge.label) {
+				info.deps = append(info.deps, ge.label)
+			}
+		}
+	}
+	return info, true
+}
+
+func contains(sl []string, el string) bool {
+	for _, s := range sl {
+		if s == el {
+			return true
+		}
+	}
+	return false
+}
