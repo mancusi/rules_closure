@@ -1,4 +1,5 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle_binary")
 
 go_library(
     name = "go_default_library",
@@ -24,12 +25,27 @@ go_library(
     ],
 )
 
+gazelle_binary(
+    name = "gazelle_js",
+    languages = DEFAULT_LANGUAGES + [
+        ":go_default_library",
+    ],
+)
+
 go_test(
     name = "go_default_test",
+    size = "small",
     srcs = [
         "config_test.go",
         "fileinfo_test.go",
+        "integration_test.go",
         "resolve_test.go",
     ],
+    args = ["-gazelle=$(location :gazelle_js)"],
+    data = [
+        ":gazelle_js",
+    ],
     embed = [":go_default_library"],
+    rundir = ".",
+    deps = ["@bazel_gazelle//testtools:go_default_library"],
 )
