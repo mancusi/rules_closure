@@ -29,11 +29,9 @@ http_archive(
 
 http_archive(
     name = "bazel_gazelle",
-    urls = [
-        "https://storage.googleapis.com/bazel-mirror/github.com/bazelbuild/bazel-gazelle/releases/download/v0.19.1/bazel-gazelle-v0.19.1.tar.gz",
-        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.19.1/bazel-gazelle-v0.19.1.tar.gz",
-    ],
-    sha256 = "86c6d481b3f7aedc1d60c1c211c6f76da282ae197c3b3160f54bd3a8f847896f",
+    sha256 = "2ea0766532655d6dc5b62cb5b8425409d6f925f8d0456c0ba13b6341be36b62c",
+    strip_prefix = "bazel-gazelle-0da10e27a5c8ec15cb17a0b7919ad341efe0ffd2",
+    url = "https://github.com/bazelbuild/bazel-gazelle/archive/0da10e27a5c8ec15cb17a0b7919ad341efe0ffd2.zip",
 )
 
 load("@io_bazel_rules_go//go:deps.bzl", "go_rules_dependencies", "go_register_toolchains")
