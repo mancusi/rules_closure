@@ -25,6 +25,27 @@ func newImportInfo(fi fileInfo) importInfo {
 func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	var jsc = getJsConfig(args.Config)
 
+	// Visibility
+	//
+	// Calculation (same as in Go):
+	// - If there's an internal/ ancestor directory, restrict visibility to
+	//   rules declared within that directory's parent.
+	// - Else, public.
+	//
+	// When generating a rule:
+	// - If Default Visibility exists, do not set a visibility on the rule.
+	// - Else, set visibility to (Calculation).
+	var (
+		hasDefaultVis bool
+		visibility    string // empty means "don't set visibility"
+	)
+	if args.File != nil {
+		hasDefaultVis = args.File.HasDefaultVisibility()
+	}
+	if !hasDefaultVis {
+		visibility = rule.CheckInternalVisibility(args.Rel, "//visibility:public")
+	}
+
 	// For each JS rule, extract info from the srcs and emit our take on it.
 	// Keep track of the src files that were covered.
 	var (
@@ -37,6 +58,7 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	if args.File != nil {
 		existingRules = args.File.Rules
 	}
+
 	for _, r := range existingRules {
 		if !isJsLibrary(r.Kind()) {
 			continue
@@ -78,9 +100,9 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 
 		// Emit an empty rule if none of the srcs were present.
 		if len(srcs) == 0 {
-			empty = append(empty, existingLib(r, nil))
+			empty = append(empty, existingLib(r, nil, visibility))
 		} else {
-			rules = append(rules, existingLib(r, srcs))
+			rules = append(rules, existingLib(r, srcs, visibility))
 			imports = append(imports, importInfo{
 				imports: requires,
 				deps:    deps,
@@ -117,7 +139,7 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		// Create one closure_js[x]_library rule per non-test source file.
 		switch fi.ext {
 		case jsExt, jsxExt:
-			rules = append(rules, generateLib(filename))
+			rules = append(rules, generateLib(filename, visibility))
 			imports = append(imports, newImportInfo(fi))
 		}
 	}
@@ -130,10 +152,10 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 				log.Println("unused test html:", path.Join(args.Rel, fis[0].name))
 				continue
 			}
-			rules = append(rules, generateTest(fis[0]))
+			rules = append(rules, generateTest(fis[0], visibility))
 			imports = append(imports, newImportInfo(fis[0]))
 		case 2:
-			rules = append(rules, generateCombinedTest(fis[1], fis[0]))
+			rules = append(rules, generateCombinedTest(fis[1], fis[0], visibility))
 			imports = append(imports, newImportInfo(fis[1]))
 		default:
 			log.Println("unexpected number of test sources:", name)
@@ -152,37 +174,43 @@ func testBaseName(name string) string {
 	return name[:strings.Index(name, "_test.")]
 }
 
-func existingLib(existing *rule.Rule, srcs []string) *rule.Rule {
+func existingLib(existing *rule.Rule, srcs []string, vis string) *rule.Rule {
 	r := rule.NewRule(existing.Kind(), existing.Name())
 	if len(srcs) > 0 {
 		r.SetAttr("srcs", srcs)
 	}
-	r.SetAttr("visibility", []string{"//visibility:public"})
+	if vis != "" {
+		r.SetAttr("visibility", []string{vis})
+	}
 	return r
 }
 
-func generateLib(filename string) *rule.Rule {
+func generateLib(filename string, vis string) *rule.Rule {
 	jsOrJsx := filepath.Ext(filename)[1:]
 	r := rule.NewRule("closure_"+jsOrJsx+"_library",
 		filename[:len(filename)-len(filepath.Ext(filename))])
 	r.SetAttr("srcs", []string{filename})
-	r.SetAttr("visibility", []string{"//visibility:public"})
+	if vis != "" {
+		r.SetAttr("visibility", []string{vis})
+	}
 	return r
 }
 
-func generateCombinedTest(js, html fileInfo) *rule.Rule {
-	r := generateTest(js)
+func generateCombinedTest(js, html fileInfo, vis string) *rule.Rule {
+	r := generateTest(js, vis)
 	r.SetAttr("html", html.name)
 	return r
 }
 
-func generateTest(js fileInfo) *rule.Rule {
+func generateTest(js fileInfo, vis string) *rule.Rule {
 	jsOrJsx := filepath.Ext(js.name)[1:]
 	r := rule.NewRule("closure_"+jsOrJsx+"_test",
 		js.name[:len(js.name)-len(filepath.Ext(js.name))])
 	r.SetAttr("srcs", []string{js.name})
 	r.SetAttr("compilation_level", "ADVANCED")
 	r.SetAttr("entry_points", js.provides)
-	r.SetAttr("visibility", []string{"//visibility:public"})
+	if vis != "" {
+		r.SetAttr("visibility", []string{vis})
+	}
 	return r
 }
