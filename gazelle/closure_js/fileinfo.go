@@ -172,6 +172,10 @@ func jsFileInfo(repoRoot string, jsc *jsConfig, path string) (info fileInfo, ok 
 			}
 			moduleName = "/" + resolvedModule
 		}
+
+		// moduleName is a closure library if it starts with 'goog:'
+		moduleName = strings.TrimPrefix(moduleName, "goog:")
+
 		info.imports = append(info.imports, moduleName)
 	}
 	info.isTestOnly = testonlyRegexp.Match(b)
