@@ -132,6 +132,9 @@ import { FieldErrors } from '../../field-row/FieldErrors';
 
 const { moveItem } = goog.require('goog.array');
 goog.require('corp.i18n');
+
+import widget from 'goog:corp.ui.widget';
+import { capitalize } from 'goog:goog.string';
 `,
 			fileInfo{
 				provides: []string{
@@ -143,6 +146,8 @@ goog.require('corp.i18n');
 					"/path/shapes",
 					"/path/utils/display-utils",
 					"/path/field-row/FieldErrors",
+					"corp.ui.widget",
+					"goog.string",
 				},
 				ext: jsxExt,
 			},

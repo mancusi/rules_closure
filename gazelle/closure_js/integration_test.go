@@ -196,6 +196,8 @@ var React = {};`,
 			Path: "es6modules/app/fields/widget.jsx",
 			Content: `
 import { IndeterminateValue } from '../../utils/display-utils';
+import widget from 'goog:corp.ui.widget';
+import { capitalize } from 'goog:goog.string';
 const { moveItem } = goog.require('goog.array');
 goog.require('corp.i18n');
 `,
@@ -204,6 +206,7 @@ goog.require('corp.i18n');
 			Path: "es6modules/app/fields/widget_test.jsx",
 			Content: `
 import { Widget } from '/es6modules/app/fields/widget';
+import testSuite from 'goog:goog.testing.testSuite';
  `,
 		},
 	}
@@ -418,7 +421,9 @@ closure_jsx_library(
     deps = [
         "//:i18n",
         "//es6modules/utils:display-utils",
+        "//ui:widget",
         "@io_bazel_rules_closure//closure/library/array",
+        "@io_bazel_rules_closure//closure/library/string",
     ],
 )
 
@@ -428,7 +433,10 @@ closure_jsx_test(
     compilation_level = "ADVANCED",
     entry_points = ["/es6modules/app/fields/widget_test"],
     visibility = ["//visibility:public"],
-    deps = [":widget"],
+    deps = [
+        ":widget",
+        "@io_bazel_rules_closure//closure/library/testing:testsuite",
+    ],
 )
 `,
 		},
