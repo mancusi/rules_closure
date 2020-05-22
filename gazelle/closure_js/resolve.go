@@ -174,7 +174,11 @@ func resolveWithIndexJs(ix *resolve.RuleIndex, imp string, from label.Label) (la
 //
 // But, since this is unlikely to be merged, make the local (and easier) fix.
 // Require any mapped kinds to begin with "closure_js".
+//
+// Ignoring any `template` js library as gazelle is incorrectly thinking that
+// closure_js_template_library is a rule that it should pay attention to, when
+// it should be ignored
 func isJsLibrary(kind string) bool {
 	//	return kind == "closure_js_library" || kind == "closure_jsx_library"
-	return strings.HasPrefix(kind, "closure_js")
+	return strings.HasPrefix(kind, "closure_js") && !strings.Contains(kind, "_template_")
 }
