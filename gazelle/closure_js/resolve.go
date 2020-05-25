@@ -65,14 +65,14 @@ func (gl *jsLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Remo
 	var depMap = make(map[string]struct{})
 	for _, imp := range fi.imports {
 		l, err := resolveJs(c, ix, rc, r, imp, from)
-		if err != nil {
+		if err != nil && err != skipImportError {
 			log.Print(err)
-		}
-		if verbose {
-			fmt.Println(".. requires ", imp, "=>", l)
 		}
 		if l == label.NoLabel {
 			continue
+		}
+		if verbose {
+			fmt.Println(".. requires ", imp, "=>", l)
 		}
 		l = l.Rel(from.Repo, from.Pkg)
 		depMap[l.String()] = struct{}{}
