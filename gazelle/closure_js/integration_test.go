@@ -190,6 +190,31 @@ goog.provide('React');
 var React = {};`,
 		},
 
+		{
+			Path: "js/bugs/dupe_externs/BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_library")
+
+# gazelle:js_grep_extern $ //js/externs:jquery
+
+closure_js_library(
+    name = "combined",
+    srcs = [
+        "a.js",
+        "b.js",
+    ],
+)
+`,
+		},
+		{
+			Path:    "js/bugs/dupe_externs/a.js",
+			Content: `($)`,
+		},
+		{
+			Path:    "js/bugs/dupe_externs/b.js",
+			Content: `($)`,
+		},
+
 		// ES6 tests
 		{
 			Path:    "es6modules/utils/display-utils.jsx",
@@ -397,6 +422,25 @@ closure_js_library(
     srcs = ["dupe_dep_not_caused_by_grep_extern_and_requires.js"],
     visibility = ["//visibility:public"],
     deps = ["//js/externs:react"],
+)
+`,
+		},
+
+		{
+			Path: "js/bugs/dupe_externs/BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_library")
+
+# gazelle:js_grep_extern $ //js/externs:jquery
+
+closure_js_library(
+    name = "combined",
+    srcs = [
+        "a.js",
+        "b.js",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//js/externs:jquery"],
 )
 `,
 		},
