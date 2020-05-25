@@ -127,7 +127,7 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			rules = append(rules, existingLib(r, srcs, visibility))
 			imports = append(imports, importInfo{
 				imports: requires,
-				deps:    deps,
+				deps:    dedupe(deps),
 			})
 		}
 	}
@@ -269,16 +269,23 @@ func generateTest(js fileInfo, vis string) *rule.Rule {
 
 func combineImports(imports []importInfo) importInfo {
 	var out importInfo
-	var deps = make(map[string]struct{})
 	for _, ii := range imports {
-		for _, dep := range ii.deps {
-			if _, ok := deps[dep]; ok {
-				continue
-			}
-			deps[dep] = struct{}{}
-			out.deps = append(out.deps, dep)
-		}
+		out.deps = append(out.deps, ii.deps...)
 		out.imports = append(out.imports, ii.imports...)
+	}
+	out.deps = dedupe(out.deps)
+	return out
+}
+
+func dedupe(deps []string) []string {
+	var out = make([]string, 0, len(deps))
+	var dict = make(map[string]struct{})
+	for _, dep := range deps {
+		if _, ok := dict[dep]; ok {
+			continue
+		}
+		dict[dep] = struct{}{}
+		out = append(out, dep)
 	}
 	return out
 }
