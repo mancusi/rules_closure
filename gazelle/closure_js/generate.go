@@ -46,6 +46,17 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		visibility = rule.CheckInternalVisibility(args.Rel, "//visibility:public")
 	}
 
+	// Info about the directory-level library rule.
+	var (
+		libName         = path.Base(args.Rel)
+		libExistingRule *rule.Rule
+		libSources      []string
+		libImports      []importInfo
+	)
+	if args.Rel == "" {
+		libName = "lib" // top level of a workspace
+	}
+
 	// For each JS rule, extract info from the srcs and emit our take on it.
 	// Keep track of the src files that were covered.
 	var (
@@ -98,6 +109,17 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			existingRuleSrcs = append(existingRuleSrcs, html)
 		}
 
+		// If we're on the directory-level rule, add its sources and imports.
+		if !jsc.rulePerFile && r.Name() == libName {
+			libExistingRule = existingLib(r, srcs, visibility)
+			libSources = append(libSources, srcs...)
+			libImports = append(libImports, importInfo{
+				imports: requires,
+				deps:    deps,
+			})
+			continue
+		}
+
 		// Emit an empty rule if none of the srcs were present.
 		if len(srcs) == 0 {
 			empty = append(empty, existingLib(r, nil, visibility))
@@ -139,8 +161,33 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		// Create one closure_js[x]_library rule per non-test source file.
 		switch fi.ext {
 		case jsExt, jsxExt:
-			rules = append(rules, generateLib(filename, visibility))
-			imports = append(imports, newImportInfo(fi))
+			libSources = append(libSources, filename)
+			libImports = append(libImports, newImportInfo(fi))
+		}
+	}
+
+	// Group the libs together unless filePerRule is set.
+	if jsc.rulePerFile {
+		for i, src := range libSources {
+			name := src[:len(src)-len(filepath.Ext(src))]
+			rules = append(rules, generateLib(name, []string{src}, visibility))
+			imports = append(imports, libImports[i])
+		}
+	} else if len(libImports) > 0 {
+		if len(libSources) == 0 {
+			empty = append(empty, libExistingRule)
+		} else {
+			generatedLib := generateLib(libName, libSources, visibility)
+			rules = append(rules, generatedLib)
+			imports = append(imports, combineImports(libImports))
+
+			// If the existing and generated rule have different kinds
+			// (closure_js_library vs closure_jsx_library), emit an empty rule
+			// to delete the existing one, so our new one takes priority.
+			if libExistingRule != nil &&
+				libExistingRule.Kind() != generatedLib.Kind() {
+				empty = append(empty, existingLib(libExistingRule, nil, visibility))
+			}
 		}
 	}
 
@@ -185,11 +232,16 @@ func existingLib(existing *rule.Rule, srcs []string, vis string) *rule.Rule {
 	return r
 }
 
-func generateLib(filename string, vis string) *rule.Rule {
-	jsOrJsx := filepath.Ext(filename)[1:]
-	r := rule.NewRule("closure_"+jsOrJsx+"_library",
-		filename[:len(filename)-len(filepath.Ext(filename))])
-	r.SetAttr("srcs", []string{filename})
+func generateLib(name string, srcs []string, vis string) *rule.Rule {
+	jsOrJsx := "js"
+	for _, src := range srcs {
+		if filepath.Ext(src) == ".jsx" {
+			jsOrJsx = "jsx"
+			break
+		}
+	}
+	r := rule.NewRule("closure_"+jsOrJsx+"_library", name)
+	r.SetAttr("srcs", srcs)
 	if vis != "" {
 		r.SetAttr("visibility", []string{vis})
 	}
@@ -213,4 +265,20 @@ func generateTest(js fileInfo, vis string) *rule.Rule {
 		r.SetAttr("visibility", []string{vis})
 	}
 	return r
+}
+
+func combineImports(imports []importInfo) importInfo {
+	var out importInfo
+	var deps = make(map[string]struct{})
+	for _, ii := range imports {
+		for _, dep := range ii.deps {
+			if _, ok := deps[dep]; ok {
+				continue
+			}
+			deps[dep] = struct{}{}
+			out.deps = append(out.deps, dep)
+		}
+		out.imports = append(out.imports, ii.imports...)
+	}
+	return out
 }

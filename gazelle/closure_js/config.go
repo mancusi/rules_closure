@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -32,6 +33,9 @@ type jsConfig struct {
 	// grepExterns is a (crude) mechanism that finds specified tokens in js or
 	// jsx files, and if found includes the given label in deps.
 	grepExterns []grepExtern
+	// rulePerFile is true if gazelle should generate a rule for each js file.
+	// By default, it generates a rule per directory, named for the directory.
+	rulePerFile bool
 }
 
 func newJsConfig() *jsConfig {
@@ -51,6 +55,7 @@ func (gc *jsConfig) clone() *jsConfig {
 func (_ *jsLang) KnownDirectives() []string {
 	return []string{
 		"js_grep_extern",
+		"js_rule_per_file",
 	}
 }
 
@@ -81,6 +86,21 @@ func (_ *jsLang) Configure(c *config.Config, rel string, f *rule.File) {
 					continue
 				}
 				gc.grepExterns = append(gc.grepExterns, newExternGrep(fields[0], fields[1]))
+			case "js_rule_per_file":
+				fields := strings.Fields(d.Value)
+				switch len(fields) {
+				case 0:
+					gc.rulePerFile = true
+				case 1:
+					b, err := strconv.ParseBool(fields[0])
+					if err != nil {
+						log.Println("`js_rule_per_file` invalid argument:", err)
+					} else {
+						gc.rulePerFile = b
+					}
+				default:
+					log.Println("expected 0 or 1 arguments: `js_rule_per_file [true|false]`")
+				}
 			}
 		}
 	}
