@@ -1,7 +1,6 @@
 package closure_js
 
 import (
-	"log"
 	"path"
 	"path/filepath"
 	"sort"
@@ -70,8 +69,30 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		existingRules = args.File.Rules
 	}
 
+	var (
+		libTestName         = libName + "_test"
+		libTestFileInfos    []fileInfo
+		libTestExistingRule *rule.Rule
+	)
+
+	// Index HTML so we're ready to provide them for test rules.
+	var htmlLookup = make(map[string]fileInfo) // "a_test" => fileInfo{a_test.html}
+	for _, filename := range args.RegularFiles {
+		if path.Ext(filename) != ".html" {
+			continue
+		}
+		var fi, ok = jsFileInfo(args.Config.RepoRoot, jsc, filepath.Join(args.Dir, filename))
+		if !ok {
+			continue
+		}
+		if fi.isTest && fi.ext == htmlExt {
+			htmlLookup[noExt(fi.name)] = fi
+			existingRuleSrcs = append(existingRuleSrcs, fi.name)
+		}
+	}
+
 	for _, r := range existingRules {
-		if !isJsLibrary(r.Kind()) {
+		if !isJsLibrary(r.Kind()) && !isJsTest(r.Kind()) {
 			continue
 		}
 
@@ -84,6 +105,7 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 
 		// Collect the combined srcs, requires, deps for this rule.
 		var srcs, requires, deps []string
+		var fileInfos []fileInfo
 		for _, src := range srcsattr {
 			// Ignore this src if it's a label.
 			if strings.HasPrefix(src, ":") || strings.HasPrefix(src, "//") {
@@ -97,6 +119,7 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 				continue
 			}
 			srcs = append(srcs, src)
+			fileInfos = append(fileInfos, fi)
 
 			switch fi.ext {
 			case jsExt, jsxExt:
@@ -105,24 +128,43 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 			}
 		}
 		existingRuleSrcs = append(existingRuleSrcs, srcs...)
-		if html := r.AttrString("html"); html != "" {
-			existingRuleSrcs = append(existingRuleSrcs, html)
-		}
 
-		// If we're on the directory-level rule, add its sources and imports.
-		if !jsc.rulePerFile && r.Name() == libName {
-			libExistingRule = existingLib(r, srcs, visibility)
-			libSources = append(libSources, srcs...)
-			libImports = append(libImports, importInfo{
-				imports: requires,
-				deps:    deps,
-			})
-			continue
+		// If we're on the directory-level rule, record its sources and imports.
+		// We can't emit a rule yet because we may need to add srcs.
+		if !jsc.rulePerFile {
+			switch r.Name() {
+			case libName:
+				libExistingRule = existingLib(r, srcs, visibility)
+				libSources = append(libSources, srcs...)
+				libImports = append(libImports, importInfo{
+					imports: requires,
+					deps:    deps,
+				})
+				continue
+			case libTestName:
+				libTestExistingRule = r
+				libTestFileInfos = append(libTestFileInfos, fileInfos...)
+				continue
+			}
 		}
 
 		// Emit an empty rule if none of the srcs were present.
+		// Else, emit the existing rule, possibly updated with our calculation
+		// of its kind, imports, deps.
 		if len(srcs) == 0 {
 			empty = append(empty, existingLib(r, nil, visibility))
+		} else if isJsTest(r.Kind()) {
+			newRule := existingTest(r, fileInfos, htmlLookup[r.Name()], visibility)
+			rules = append(rules,
+				newRule)
+			imports = append(imports, importInfo{
+				imports: requires,
+				deps:    dedupe(deps),
+			})
+			// If the kind changed, emit an empty rule under the old kind/name.
+			if r.Kind() != newRule.Kind() {
+				empty = append(empty, rule.NewRule(r.Kind(), r.Name()))
+			}
 		} else {
 			rules = append(rules, existingLib(r, srcs, visibility))
 			imports = append(imports, importInfo{
@@ -134,8 +176,6 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 
 	// Loop through each file in this package, read their info (what they
 	// provide & require), and generate a lib or test rule for it.
-	var testFileInfos = make(map[string][]fileInfo)
-	sort.Strings(args.RegularFiles) // results in htmls first
 	for _, filename := range args.RegularFiles {
 		// Skip any that we already processed.
 		if contains(existingRuleSrcs, filename) {
@@ -151,10 +191,11 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 
 		// Deal with tests separately since they involve multiple files.
-		// TODO: Make this work with multi-file groupings.
 		if fi.isTest {
-			name := testBaseName(fi.name)
-			testFileInfos[name] = append(testFileInfos[name], fi)
+			switch fi.ext {
+			case jsExt, jsxExt:
+				libTestFileInfos = append(libTestFileInfos, fi)
+			}
 			continue
 		}
 
@@ -166,6 +207,7 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 	}
 
+	// Generate libraries.
 	// Group the libs together unless filePerRule is set.
 	if jsc.rulePerFile {
 		for i, src := range libSources {
@@ -191,21 +233,58 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		}
 	}
 
-	// Group foo_test.js[x] with foo_test.html (if present) into test targets.
-	for name, fis := range testFileInfos {
-		switch len(fis) {
-		case 1:
-			if fis[0].ext == htmlExt {
-				log.Println("unused test html:", path.Join(args.Rel, fis[0].name))
-				continue
+	// Generate tests.
+	if jsc.rulePerFile {
+		for _, fi := range libTestFileInfos {
+			if html, ok := htmlLookup[noExt(fi.name)]; ok {
+				rules = append(rules, generateCombinedTest(fi, html, visibility))
+			} else {
+				rules = append(rules, generateTest(fi, visibility))
 			}
-			rules = append(rules, generateTest(fis[0], visibility))
-			imports = append(imports, newImportInfo(fis[0]))
-		case 2:
-			rules = append(rules, generateCombinedTest(fis[1], fis[0], visibility))
-			imports = append(imports, newImportInfo(fis[1]))
-		default:
-			log.Println("unexpected number of test sources:", name)
+			imports = append(imports, newImportInfo(fi))
+		}
+	} else {
+		if len(libTestFileInfos) == 0 {
+			empty = append(empty, generateMultiTest(libTestName, nil, visibility))
+		} else {
+			// Create individual rules for tests that have associated HTML.
+			// Create a single directory level rule for all others.
+			//
+			// Special case: if individual test with associated HTML has same
+			// name as the directory, set the html on it regardless.
+			var noHtmlFileInfos []fileInfo
+			var dirHTML fileInfo // only set for the special case above
+			for _, fi := range libTestFileInfos {
+				if html, ok := htmlLookup[noExt(fi.name)]; ok {
+					if fi.name[:len(fi.name)-len(path.Ext(fi.name))] == libTestName {
+						dirHTML = html
+						noHtmlFileInfos = append(noHtmlFileInfos, fi)
+						continue
+					}
+					rules = append(rules, generateCombinedTest(fi, html, visibility))
+					imports = append(imports, fileInfoImports([]fileInfo{fi}))
+				} else {
+					noHtmlFileInfos = append(noHtmlFileInfos, fi)
+				}
+			}
+
+			if len(noHtmlFileInfos) > 0 {
+				generatedTest := generateMultiTest(libTestName, noHtmlFileInfos, visibility)
+				if dirHTML.path != "" {
+					generatedTest.SetAttr("html", dirHTML.name)
+				}
+				rules = append(rules, generatedTest)
+				imports = append(imports, fileInfoImports(noHtmlFileInfos))
+
+				// If the existing and generated rule have different kinds
+				// (closure_js_test vs closure_jsx_test), emit an empty rule
+				// to delete the existing one, so our new one takes priority.
+				if libTestExistingRule != nil &&
+					libTestExistingRule.Kind() != generatedTest.Kind() {
+					empty = append(empty,
+						rule.NewRule(libTestExistingRule.Kind(), libTestExistingRule.Name()))
+				}
+			}
 		}
 	}
 
@@ -216,9 +295,19 @@ func (gl *jsLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 }
 
-// testBaseName trims foo_test.[js|html] => "foo"
-func testBaseName(name string) string {
-	return name[:strings.Index(name, "_test.")]
+func fileInfoImports(fis []fileInfo) importInfo {
+	var ii importInfo
+	for _, fi := range fis {
+		ii.imports = append(ii.imports, fi.imports...)
+		ii.deps = append(ii.deps, fi.deps...)
+	}
+	ii.deps = dedupe(ii.deps)
+	return ii
+}
+
+// noExt trims foo_test.[js|html] => "foo_test"
+func noExt(name string) string {
+	return name[:len(name)-len(path.Ext(name))]
 }
 
 func existingLib(existing *rule.Rule, srcs []string, vis string) *rule.Rule {
@@ -241,7 +330,75 @@ func generateLib(name string, srcs []string, vis string) *rule.Rule {
 		}
 	}
 	r := rule.NewRule("closure_"+jsOrJsx+"_library", name)
-	r.SetAttr("srcs", srcs)
+	if len(srcs) > 0 {
+		r.SetAttr("srcs", srcs)
+	}
+	if vis != "" {
+		r.SetAttr("visibility", []string{vis})
+	}
+	return r
+}
+
+func existingTest(r *rule.Rule, js []fileInfo, html fileInfo, vis string) *rule.Rule {
+	var srcs, provides []string
+	var jsOrJsx = "js"
+	for _, fi := range js {
+		srcs = append(srcs, fi.name)
+		provides = append(provides, fi.provides...)
+		if filepath.Ext(fi.name) == ".jsx" {
+			jsOrJsx = "jsx"
+		}
+	}
+	sort.Strings(srcs)
+	sort.Strings(provides)
+
+	// Calculate and set srcs and entry_points.
+	// All other attrs, defer to what's already there.
+	newRule := rule.NewRule("closure_"+jsOrJsx+"_test", r.Name())
+	for _, attrName := range r.AttrKeys() {
+		if attrName != "srcs" && attrName != "entry_points" {
+			newRule.SetAttr(attrName, r.Attr(attrName))
+		}
+	}
+	if len(srcs) > 0 {
+		newRule.SetAttr("srcs", srcs)
+	}
+	if len(provides) > 0 {
+		newRule.SetAttr("entry_points", provides)
+	}
+	if r.Attr("compilation_level") == nil {
+		newRule.SetAttr("compilation_level", "ADVANCED")
+	}
+	if r.Attr("visibility") == nil && vis != "" {
+		newRule.SetAttr("visibility", []string{vis})
+	}
+	if r.Attr("html") == nil && html.path != "" {
+		newRule.SetAttr("html", html.name)
+	}
+	return newRule
+}
+
+func generateMultiTest(name string, js []fileInfo, vis string) *rule.Rule {
+	var srcs, provides []string
+	var jsOrJsx = "js"
+	for _, fi := range js {
+		srcs = append(srcs, fi.name)
+		provides = append(provides, fi.provides...)
+		if filepath.Ext(fi.name) == ".jsx" {
+			jsOrJsx = "jsx"
+		}
+	}
+	sort.Strings(srcs)
+	sort.Strings(provides)
+
+	r := rule.NewRule("closure_"+jsOrJsx+"_test", name)
+	if len(srcs) > 0 {
+		r.SetAttr("srcs", srcs)
+	}
+	r.SetAttr("compilation_level", "ADVANCED")
+	if len(provides) > 0 {
+		r.SetAttr("entry_points", provides)
+	}
 	if vis != "" {
 		r.SetAttr("visibility", []string{vis})
 	}
