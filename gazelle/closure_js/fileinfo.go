@@ -103,7 +103,7 @@ func fileNameInfo(path_ string) fileInfo {
 var (
 	closureLibraryRepo = `com_google_javascript_closure_library`
 
-	declRegexp = regexp.MustCompile(`(?m)^(?:(?:const|var) [^;]*?\s*=\s*)?goog\.(require|provide|module)\(['"]([^'"]+)`)
+	declRegexp = regexp.MustCompile(`(?m)^(?:(?:const|var) [^;]*?\s*=\s*)?goog\.(require|provide|module|declareModuleId)\(['"]([^'"]+)`)
 
 	testonlyRegexp = regexp.MustCompile(`^goog\.setTestOnly\(`)
 
@@ -140,6 +140,8 @@ func jsFileInfo(repoRoot string, jsc *jsConfig, path string) (info fileInfo, ok 
 			info.provides = append(info.provides, identifier)
 		case "require":
 			info.imports = append(info.imports, identifier)
+		case "declareModuleId":
+			info.provides = append(info.provides, identifier)
 		default:
 			panic("unhandled declType: " + declType)
 		}

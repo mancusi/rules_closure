@@ -152,6 +152,19 @@ import { capitalize } from 'goog:goog.string';
 				ext: jsxExt,
 			},
 		},
+		{
+			"declareModuleId",
+			"path/to/app/copylink.jsx",
+			`goog.declareModuleId('corp.path.to.app.CopyLink');`,
+			fileInfo{
+				moduleType: moduleTypeES6,
+				provides: []string{
+					"corp.path.to.app.CopyLink",
+					"/path/to/app/copylink",
+				},
+				ext: jsxExt,
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			dir, err := ioutil.TempDir(os.Getenv("TEST_TEMPDIR"), "TestJsFileInfo")
