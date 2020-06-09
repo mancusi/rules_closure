@@ -1338,6 +1338,20 @@ closure_js_test(
 		{Path: "change_type_2/c_test.js"},
 		{Path: "change_type_2/d_test.jsx"},
 		{Path: "change_type_2/testdata"},
+
+		// Test that declareModuleId is not added to entry_points.
+		{
+			Path:    "no_declareModuleId/file1.js",
+			Content: `goog.declareModuleId('no_declareModuleId.file1')`,
+		},
+		{
+			Path: "no_declareModuleId/file1_test.js",
+			Content: `
+goog.declareModuleId('no_declareModuleId.file1_test')
+
+goog.require('no_declareModuleId.file1');
+`,
+		},
 	}
 
 	dir, cleanup := testtools.CreateFiles(t, files)
@@ -1687,6 +1701,28 @@ closure_jsx_test(
     visibility = ["//visibility:public"],
 )
 
+`,
+		},
+
+		{
+			Path: "no_declareModuleId/BUILD.bazel",
+			Content: `
+load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_library", "closure_js_test")
+
+closure_js_library(
+    name = "no_declareModuleId",
+    srcs = ["file1.js"],
+    visibility = ["//visibility:public"],
+)
+
+closure_js_test(
+    name = "no_declareModuleId_test",
+    srcs = ["file1_test.js"],
+    compilation_level = "ADVANCED",
+    entry_points = ["/no_declareModuleId/file1_test"],
+    visibility = ["//visibility:public"],
+    deps = [":no_declareModuleId"],
+)
 `,
 		},
 	})

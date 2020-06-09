@@ -339,22 +339,33 @@ func generateLib(name string, srcs []string, vis string) *rule.Rule {
 	return r
 }
 
-func existingTest(r *rule.Rule, js []fileInfo, html fileInfo, vis string) *rule.Rule {
-	var srcs, provides []string
-	var jsOrJsx = "js"
+func testKindSrcsProvides(js []fileInfo) (kind string, srcs, provides []string) {
+	kind = "closure_js_test"
 	for _, fi := range js {
 		srcs = append(srcs, fi.name)
-		provides = append(provides, fi.provides...)
+		for _, provided := range fi.provides {
+			// Ignore goog.declareModuleId in ES6 modules for this purpose.
+			// Otherwise it adds a duplicate entry_point.
+			if fi.moduleType == moduleTypeES6 && provided[0] != '/' {
+				continue
+			}
+			provides = append(provides, provided)
+		}
 		if filepath.Ext(fi.name) == ".jsx" {
-			jsOrJsx = "jsx"
+			kind = "closure_jsx_test"
 		}
 	}
 	sort.Strings(srcs)
 	sort.Strings(provides)
+	return kind, srcs, provides
+}
+
+func existingTest(r *rule.Rule, js []fileInfo, html fileInfo, vis string) *rule.Rule {
+	var kind, srcs, provides = testKindSrcsProvides(js)
 
 	// Calculate and set srcs and entry_points.
 	// All other attrs, defer to what's already there.
-	newRule := rule.NewRule("closure_"+jsOrJsx+"_test", r.Name())
+	newRule := rule.NewRule(kind, r.Name())
 	for _, attrName := range r.AttrKeys() {
 		if attrName != "srcs" && attrName != "entry_points" {
 			newRule.SetAttr(attrName, r.Attr(attrName))
@@ -379,19 +390,9 @@ func existingTest(r *rule.Rule, js []fileInfo, html fileInfo, vis string) *rule.
 }
 
 func generateMultiTest(name string, js []fileInfo, vis string) *rule.Rule {
-	var srcs, provides []string
-	var jsOrJsx = "js"
-	for _, fi := range js {
-		srcs = append(srcs, fi.name)
-		provides = append(provides, fi.provides...)
-		if filepath.Ext(fi.name) == ".jsx" {
-			jsOrJsx = "jsx"
-		}
-	}
-	sort.Strings(srcs)
-	sort.Strings(provides)
+	var kind, srcs, provides = testKindSrcsProvides(js)
 
-	r := rule.NewRule("closure_"+jsOrJsx+"_test", name)
+	r := rule.NewRule(kind, name)
 	if len(srcs) > 0 {
 		r.SetAttr("srcs", srcs)
 	}
