@@ -25,3 +25,11 @@ filegroup(
         "soyutils_usegoog.js",
     ],
 )
+
+filegroup(
+    name = "maps",
+    srcs = [
+        "soyutils_map.js",
+        "soyutils_newmaps.js",
+    ],
+)
