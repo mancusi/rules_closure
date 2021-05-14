@@ -26,18 +26,21 @@ final class JsCompilerRunner extends CommandLineRunner {
   private final boolean exportTestFunctions;
   private final WarningsGuard warnings;
   private final boolean disablePropertyRenaming;
+  private final boolean devBuild;
 
   JsCompilerRunner(
       Iterable<String> args,
       Compiler compiler,
       boolean exportTestFunctions,
       WarningsGuard warnings,
-      boolean disablePropertyRenaming) {
+      boolean disablePropertyRenaming,
+      boolean devBuild) {
     super(Iterables.toArray(args, String.class));
     this.compiler = compiler;
     this.exportTestFunctions = exportTestFunctions;
     this.warnings = warnings;
     this.disablePropertyRenaming = disablePropertyRenaming;
+    this.devBuild = devBuild;
   }
 
   int go() throws IOException {
@@ -65,6 +68,77 @@ final class JsCompilerRunner extends CommandLineRunner {
         options.setPropertyRenaming(PropertyRenamingPolicy.OFF);
         options.setDisambiguateProperties(false);
     }
+    if (devBuild) {
+      applySpeedyOptions(options);
+    }
     return options;
+  }
+
+  /**
+   * Remove checks and undo most of the options set by the ADVANCED
+   * CompilationLevel to make development builds faster.
+   *
+   * Does not change property renaming options so code that works when compiled
+   * this way will also work with property renaming.
+   *
+   * @param options CompilerOptions object to update
+   */
+  private void applySpeedyOptions(CompilerOptions options) {
+    options.resetWarningsGuard();
+
+    options.setCheckSymbols(false);
+    options.setCheckTypes(false);
+    options.setInferTypes(false);
+    options.setInferConst(false);
+    options.setCheckSuspiciousCode(false);
+    options.setRewritePolyfills(false);
+    options.setIsolatePolyfills(false);
+    options.setComputeFunctionSideEffects(false);
+
+    // All the safe optimizations.
+    options.setClosurePass(true); // Must be set to true for things to work
+    options.setFoldConstants(false);
+    options.setCoalesceVariableNames(false);
+    options.setDeadAssignmentElimination(false);
+    options.setExtractPrototypeMemberDeclarations(false);
+    options.setCollapseVariableDeclarations(false);
+    options.setConvertToDottedProperties(false);
+    options.setLabelRenaming(false);
+    options.setOptimizeArgumentsArray(false);
+    options.setCollapseObjectLiterals(false);
+    options.setProtectHiddenSideEffects(false);
+
+    // All the advanced optimizations.
+    options.setRemoveClosureAsserts(false);
+    options.setRemoveAbstractMethods(false);
+    options.setReserveRawExports(false);
+    options.setRemoveUnusedPrototypeProperties(false);
+    options.setRemoveUnusedClassProperties(false);
+    options.setCollapseAnonymousFunctions(false);
+    options.setWarningLevel(DiagnosticGroups.GLOBAL_THIS, CheckLevel.OFF);
+    options.setRewriteFunctionExpressions(false);
+    options.setSmartNameRemoval(false);
+    options.setInlineConstantVars(false);
+    options.setInlineFunctions(CompilerOptions.Reach.NONE);
+    options.setAssumeClosuresOnlyCaptureReferences(false);
+    options.setInlineVariables(CompilerOptions.Reach.NONE);
+    options.setComputeFunctionSideEffects(false);
+    options.setAssumeStrictThis(false);
+
+    // Remove unused vars also removes unused functions.
+    options.setRemoveUnusedVariables(CompilerOptions.Reach.NONE);
+
+    // Move code around based on the defined modules.
+    options.setCrossChunkCodeMotion(false);
+    options.setCrossChunkMethodMotion(false);
+
+    // Call optimizations
+    options.setDevirtualizeMethods(false);
+    options.setOptimizeCalls(false);
+
+    // Type-based optimizations
+    options.setAmbiguateProperties(false);
+    options.setInlineProperties(false);
+    options.setUseTypesForLocalOptimization(false);
   }
 }

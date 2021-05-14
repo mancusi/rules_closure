@@ -96,6 +96,7 @@ public final class JsCompiler implements CommandLineProgram {
     boolean exportTestFunctions = false;
     boolean checksOnly = false;
     boolean disablePropertyRenaming = false;
+    boolean devBuild = false;
 
     // Compiler flags we want to read.
     Path jsOutputFile = null;
@@ -140,6 +141,9 @@ public final class JsCompiler implements CommandLineProgram {
           break;
         case "--disable_property_renaming":
           disablePropertyRenaming = true;
+          continue;
+        case "--experimental_dev_build":
+          devBuild = true;
           continue;
         default:
           break;
@@ -190,7 +194,8 @@ public final class JsCompiler implements CommandLineProgram {
             compiler,
             exportTestFunctions,
             warnings,
-            disablePropertyRenaming);
+            disablePropertyRenaming,
+            devBuild);
     if (runner.shouldRunCompiler()) {
       failed |= runner.go() != 0;
     }
