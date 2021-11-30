@@ -266,8 +266,8 @@ closure_js_library(
     visibility = ["//visibility:public"],
     deps = [
         ":corp",
-        "@io_bazel_rules_closure//closure/library/i18n:messageformat",
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/i18n:messageformat",
+        "@com_google_javascript_closure_library//closure/goog/string",
     ],
 )
 `,
@@ -283,7 +283,7 @@ closure_jsx_library(
     visibility = ["//visibility:public"],
     deps = [
         "//:i18n",
-        "@io_bazel_rules_closure//closure/library/ui:component",
+        "@com_google_javascript_closure_library//closure/goog/ui:component",
     ],
 )
 
@@ -297,7 +297,7 @@ closure_jsx_test(
     deps = [
         "//:corp",
         "//:i18n",
-        "@io_bazel_rules_closure//closure/library/ui:component",
+        "@com_google_javascript_closure_library//closure/goog/ui:component",
     ],
 )
 `,
@@ -344,7 +344,7 @@ closure_js_library(
     deps = [
         "//:i18n",
         "//ui:widget",
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/string",
         "@io_bazel_rules_closure//third_party/closure/library/dojo/dom:query",
     ],
 )
@@ -355,7 +355,7 @@ closure_js_library(
     visibility = ["//visibility:public"],
     deps = [
         ":existing",
-        "@io_bazel_rules_closure//closure/library/array",
+        "@com_google_javascript_closure_library//closure/goog/array",
     ],
 )
 
@@ -470,8 +470,8 @@ closure_jsx_library(
         "//:i18n",
         "//es6modules/utils:display-utils",
         "//ui:widget",
-        "@io_bazel_rules_closure//closure/library/array",
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/array",
+        "@com_google_javascript_closure_library//closure/goog/string",
     ],
 )
 
@@ -483,7 +483,7 @@ closure_jsx_test(
     visibility = ["//visibility:public"],
     deps = [
         ":widget",
-        "@io_bazel_rules_closure//closure/library/testing:testsuite",
+        "@com_google_javascript_closure_library//closure/goog/testing:testsuite",
     ],
 )
 `,
@@ -933,8 +933,8 @@ closure_jsx_library(
         "//js/externs:jQuery",
         "//js/externs:lodash",
         "//js/externs:react",
-        "@io_bazel_rules_closure//closure/library/array",
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/array",
+        "@com_google_javascript_closure_library//closure/goog/string",
         "@io_bazel_rules_closure//third_party/closure/library/dojo/dom:query",
     ],
 )
@@ -956,7 +956,7 @@ closure_js_library(
     visibility = ["//visibility:public"],
     deps = [
         ":testdep",  # keep
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/string",
         "@io_bazel_rules_closure//third_party/closure/library/dojo/dom:query",
     ],
 )
@@ -967,7 +967,7 @@ closure_js_library(
     visibility = ["//visibility:public"],
     deps = [
         ":existing",
-        "@io_bazel_rules_closure//closure/library/array",
+        "@com_google_javascript_closure_library//closure/goog/array",
     ],
 )
 
@@ -1014,8 +1014,8 @@ closure_js_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "@io_bazel_rules_closure//closure/library/array",
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/array",
+        "@com_google_javascript_closure_library//closure/goog/string",
     ],
 )
 `,
@@ -1507,7 +1507,7 @@ closure_js_test(
     deps = [
         ":existing_rules",
         ":file2",
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/string",
         "@io_bazel_rules_closure//third_party/closure/library/dojo/dom:query",
     ],
 )
@@ -1561,7 +1561,7 @@ closure_js_test(
     visibility = ["//visibility:public"],
     deps = [
         ":existing_lib",
-        "@io_bazel_rules_closure//closure/library/array",
+        "@com_google_javascript_closure_library//closure/goog/array",
     ],
 )
 `,
@@ -1624,7 +1624,7 @@ closure_js_test(
     entry_points = ["/dir_has_html/dir_has_html_test"],
     html = "dir_has_html_test.html",
     visibility = ["//visibility:public"],
-    deps = ["@io_bazel_rules_closure//closure/library/string"],
+    deps = ["@com_google_javascript_closure_library//closure/goog/string"],
 )
 `,
 		},
@@ -1648,8 +1648,8 @@ closure_js_test(
     html = "gains_html_2_test.html",
     visibility = ["//visibility:public"],
     deps = [
-        "@io_bazel_rules_closure//closure/library/array",
-        "@io_bazel_rules_closure//closure/library/string",
+        "@com_google_javascript_closure_library//closure/goog/array",
+        "@com_google_javascript_closure_library//closure/goog/string",
     ],
 )
 `,

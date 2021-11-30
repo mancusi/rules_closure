@@ -6,7 +6,7 @@ func TestResolveClosureLibrary(t *testing.T) {
 	var tests = []struct {
 		in, out string
 	}{
-		{"goog.i18n.MessageFormat", "@io_bazel_rules_closure//closure/library/i18n:messageformat"},
+		{"goog.i18n.MessageFormat", "@com_google_javascript_closure_library//closure/goog/i18n:messageformat"},
 	}
 	for _, test := range tests {
 		actual := resolveClosureLibrary(test.in).String()

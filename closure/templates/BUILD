@@ -64,8 +64,8 @@ closure_js_library(
     srcs = ["@com_google_template_soy_jssrc//:maps"],
     lenient = True,
     deps = [
-        "//closure/library/array",
-        "//closure/library/asserts",
+        "@com_google_javascript_closure_library//closure/goog/array",
+        "@com_google_javascript_closure_library//closure/goog/asserts",
     ],
 )
 
